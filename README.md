@@ -6,15 +6,15 @@ This is a RISC-V Emulator made by a 17 year old. It's architecture is currently 
 
 -Interrupts
 
--Privilage modes (Machine, Superviser and User)
+-Privilege modes (Machine, Superviser and User)
 
--Traps and Trap handeling
+-Traps and Trap handling
 
 -PLIC
 
 -UART
 
--Interractive Debugger
+-Interactive Debugger
 
 -Lazy allocation of memory for optimization
 
@@ -25,7 +25,7 @@ in Powershell on Windows 10/11 using GCC from the project root:
 gcc -O3 src\elf.c src\memory.c src\cpu.c src\peripheral.c src\main.c -o bin\emu.exe
 ```
 
-replace bin with the directory of the binary executable if needed
+replace `bin` with the directory of the binary executable if needed
 
 ## Obtaining the RISC-V Dev Tools for Windows 10/11
 Install NodeJs if you havent
