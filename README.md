@@ -72,6 +72,6 @@ A linker file like in the "hello_world" test program is required
 Unfortunetely, the emulator currently hard codes the directory to the program elf of choice. To run a program, it is necessary to change this directory for the directory of choice
 
 ## How to help
-By being kind, cooporative and constructive, pointing out bugs and suggesting new features
+By being kind, cooporative and constructive, pointing out bugs suggesting new features, and writing issues
 
 It is also recommended to star the repository if you desire, or also fork and merge the project
