@@ -1,0 +1,5 @@
+run in powershell:
+riscv-none-elf-as -c -mabi=ilp32d rsc/hello_world/entry.s -o rsc/hello_world/start.o 
+riscv-none-elf-gcc -c -ffreestanding -nostdlib -march=rv32imfd -mabi=ilp32d rsc/hello_world/main.c -o rsc/hello_world/main.o 
+riscv-none-elf-ld -T rsc/hello_world/link.ld rsc/hello_world/start.o rsc/hello_world/main.o -o rsc/hello_world/output.elf
+in this order
