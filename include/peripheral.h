@@ -47,5 +47,8 @@ void clear_PLIC(PLIC_t* plic, uint32_t ID);
 void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu);
 
 void init_UART(UART_t* uart, PLIC_t* plic, uint32_t address);
+void step_UART(UART_t* uart, memory_t* mem, PLIC_t* plic);
+int write_UART(UART_t* uart, uint8_t data);
+int read_UART(UART_t* uart, uint8_t* data);
 
 #endif
