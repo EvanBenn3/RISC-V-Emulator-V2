@@ -144,6 +144,7 @@ uint32_t read_csr(hart* cpu, csr_t csr_address) {
 }
 
 void trap_handler(hart* cpu, trap_cause cause, uint32_t trap_value) {
+    printf("TRAP: cause=%d, pc=0x%08x, value=0x%08x\n", cause, cpu->pc, trap_value);
     bool is_interrupt = (cause >> 31) & 1;
     bool deleg;
     if (is_interrupt) {
@@ -704,7 +705,7 @@ void sret(hart* cpu, uint32_t instruction) {
     bool spie = (mstatus >> 5) & 1;
     
     cpu->mode = spp;
-    cpu->pc = cpu->csr[CSR_MEPC];
+    cpu->pc = cpu->csr[CSR_SEPC];
     cpu->csr[CSR_MSTATUS] &= ~0x122;
     cpu->csr[CSR_MSTATUS] |= spie << 1;
 }
@@ -759,6 +760,8 @@ void step(hart* cpu) {
     uint32_t instruction;
     uint32_t err = read_word(memory, cpu->pc, &instruction);
     uint32_t opcode = instruction & 0x7f;
+
+    //printf("PC: 0x%08x | INST: 0x%08x | OPCODE: 0x%02x\n", cpu->pc, instruction, opcode);
 
     interrupt_detector(cpu);
     if (cpu->debug) {

@@ -10,11 +10,14 @@ void init_timer(timer_t* timer) {
 }
 
 void step_timer(timer_t* timer, memory_t* mem, hart* cpu) {
+    uint32_t prev_last_address = mem->last_address;
+    uint32_t prev_last_address_size = mem->last_address_size;
+    char prev_last_address_type = mem->last_address_type;
     if (check_dirty(mem, 0x02000000) || check_dirty(mem, 0x02000004)) {
         if (mem->last_address_type == 'w') {
             write_word(mem, 0x2000000, (uint32_t)(timer->mtime & 0xffffffff));
             write_word(mem, 0x2000004, (uint32_t)(timer->mtime >> 32));
-            mem->last_address = 0;
+            prev_last_address = 0;
         }
     }
     if (check_dirty(mem, 0x02004000) || check_dirty(mem, 0x02004004)) {
@@ -23,7 +26,7 @@ void step_timer(timer_t* timer, memory_t* mem, hart* cpu) {
             read_word(mem, 0x2004000, (uint32_t*)&val);
             read_word(mem, 0x2004004, ((uint32_t*)&val)+1);
             timer->mtimecmp = val;
-            mem->last_address = 0;
+            prev_last_address = 0;
         }
     }
     if (check_dirty(mem, 0x2004008) || check_dirty(mem, 0x200400c)) {
@@ -32,7 +35,7 @@ void step_timer(timer_t* timer, memory_t* mem, hart* cpu) {
             read_word(mem, 0x2004008, (uint32_t*)&val);
             read_word(mem, 0x200400c, ((uint32_t*)&val)+1);
             timer->stimecmp = val;
-            mem->last_address = 0;
+            prev_last_address = 0;
         }
     }
     if (timer->mtime >= timer->mtimecmp) {
@@ -46,6 +49,9 @@ void step_timer(timer_t* timer, memory_t* mem, hart* cpu) {
         clear_interrupt(cpu, IRQ_S_TIMER);
     }
     timer->mtime += 1;
+    mem->last_address = prev_last_address;
+    mem->last_address_size = prev_last_address_size;
+    mem->last_address_type = prev_last_address_type;
 }
 
 void init_PLIC(PLIC_t* plic, uint32_t address) {
@@ -83,6 +89,7 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
     uint32_t s_priority;
     bool is_m_dirty = false;
     bool is_s_dirty = false;
+
     if (check_dirty(mem, plic->address + 0x200004)) {
         is_m_dirty = true;
         mem->last_address = 0;
@@ -90,7 +97,6 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
         is_s_dirty = true;
         mem->last_address = 0;
     }
-
     if (is_m_dirty && (mem->last_address_type == 'r')) { // checks claim
         plic->pending[plic->curr_ID] = false;
         plic->processing = true;
@@ -140,11 +146,11 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
     }
     if (!plic->processing) {
         for (int i = 0; i < 1024; i++) { // reads enable signals
-            read_byte(mem, plic->address + 0x2000 + i, &enable0[i]);
-            read_byte(mem, plic->address + 0x2080 + i, &enable1[i]); 
+            read_byte(mem, plic->address + 0x2000 + i, (uint8_t*)&enable0[i]);
+            read_byte(mem, plic->address + 0x2080 + i, (uint8_t*)&enable1[i]); 
         }
-        read_byte(mem, plic->address + 0x200000, &m_priority);
-        read_byte(mem, plic->address + 0x201000, &s_priority);
+        read_byte(mem, plic->address + 0x200000, (uint8_t*)&m_priority);
+        read_byte(mem, plic->address + 0x201000, (uint8_t*)&s_priority);
         if (m_priority > 7) {
             m_priority = 0;
             write_word(mem, plic->address + 0x200000, 0);
@@ -156,11 +162,11 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
 
         for (int i = 0; i < 1024; i++) {
             pass[i] = 0;
-            if (plic->pending[i] && enable0[i] && (priority[i] >= m_priority)) {
-                pass[i] = priority[i];
-            }
             if (plic->pending[i] && enable1[i] && (priority[i] >= s_priority)) {
                 pass[i] = priority[i] | (1 << 7);
+            }
+            if (plic->pending[i] && enable0[i] && (priority[i] >= m_priority)) {
+                pass[i] = priority[i];
             }
         }
     
@@ -195,45 +201,70 @@ void init_UART(UART_t* uart, PLIC_t* plic, uint32_t address) {
     uart->ID = add_PLIC(plic);
 }
 
-void step_UART(UART_t* uart, memory_t* mem) {
-    bool is_TX_dirty = false, is_RX_dirty = false, is_TX_enable = false, is_RX_enable = false;
+void step_UART(UART_t* uart, memory_t* mem, PLIC_t* plic) {
+    uint32_t prev_last_address = mem->last_address;
+    uint32_t prev_last_address_size = mem->last_address_size;
+    char prev_last_address_type = mem->last_address_type;
 
-    if (check_dirty(mem, uart->address)) {
-        is_TX_dirty = true;
-        mem->last_address = 0;
-    } else if (check_dirty(mem, uart->address + 0x4)) {
-        is_RX_dirty = true;
-        mem->last_address = 0;
+    if (uart->RX_E) {
+        if (check_dirty(mem, uart->address + 0x4) && mem->last_address_type == 'r') {
+            if (uart->rxp > 0) {
+                for (int i = 0; i < uart->rxp - 1; i++) {
+                    uart->rx[i] = uart->rx[i+1];
+                }
+                uart->rxp--;
+            }
+        }
+
+        if (uart->rxp > 0) {
+            write_word(mem, uart->address + 0x4, uart->rx[0]);
+            uart->RXEMPTY = false;
+        } else {
+            write_word(mem, uart->address + 0x4, 0);
+            uart->RXEMPTY = true;
+        }
     }
-    uint32_t val;
-    read_word(mem, uart->address + 0x10, &val);
 
-    // TX: CPU wrote data to send
-    if (is_TX_dirty && (mem->last_address_type == 'w') && !uart->TXFULL && is_TX_enable) {
-        read_word(mem, uart->address, &val);
-        // TODO: clear TX interrupt pending
+    if (uart->TX_E) {
+        if (check_dirty(mem, uart->address) && mem->last_address_type == 'w') {
+            uint32_t val;
+            read_word(mem, uart->address, &val);
+            uint8_t data = (uint8_t)val;
+
+            if (uart->txp < 64) {
+                uart->tx[uart->txp++] = data;
+                uart->TXFULL = (uart->txp >= 64);
+            }
+
+            prev_last_address = 0;
+        }
     }
 
-    // RX: CPU read received data
-    if (is_RX_dirty && (mem->last_address_type == 'r') && !uart->RXEMPTY && is_RX_enable) {
-        // TODO: clear RX interrupt pending
-    }
+    uint8_t status = 0;
+    if (uart->TXFULL) status |= 1;
+    if (uart->RXEMPTY) status |= 2;
+    write_byte(mem, uart->address + 0x8, status);
 
-    // IE: interrupt enable changed
-    // TODO: re-evaluate pending interrupts
+    uint8_t control;
+    read_byte(mem, uart->address + 0x10, &control);
+    uart->TX_E = control & 1;
+    uart->RX_E = (control >> 1) & 1;
+    uart->TX_IE = (control >> 2) & 1;
+    uart->RX_IE = (control >> 3) & 1;
 
-    // CTRL: enable bits changed
-    // TODO: enable/disable TX/RX paths
+    if (uart->TX_IE && uart->txp == 0) interrupt_PLIC(plic, uart->ID);
+    else clear_PLIC(plic, uart->ID);
+    if (uart->RX_IE && !uart->RXEMPTY) interrupt_PLIC(plic, uart->ID);
+    else clear_PLIC(plic, uart->ID);
 
-    // Check if we should raise/lower interrupts to PLIC
-    // TODO: if (TX empty && TX IE) -> PLIC_interrupt
-    // TODO: if (RX has data && RX IE) -> PLIC_interrupt
-
+    mem->last_address = prev_last_address;
+    mem->last_address_size = prev_last_address_size;
+    mem->last_address_type = prev_last_address_type;
 }
 
 int write_UART(UART_t* uart, uint8_t data) {
     if (uart->rxp >= 63) return 1;
-    uart->rx[++uart->rxp] = data;
+    uart->rx[uart->rxp++] = data;
     return 0;
 }
 

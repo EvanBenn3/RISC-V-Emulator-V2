@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <time.h>
 
 #include "../include/cpu.h"
 #include "../include/elf.h"
@@ -26,35 +27,49 @@ int main() {
     printf("Elf Loaded\n");
 
     timer_t timer;
+    UART_t uart;
     PLIC_t plic;
     init_timer(&timer);
     init_PLIC(&plic, 0x0c000000);
+    init_UART(&uart, &plic, 0x10000000);
 
-    write_byte(&mem, 0x52, 0);
-
+    int inst_count = 0;
     bool running = true;
     bool exit_dirty = false;
-    uint8_t exit_byte;;
+    uint8_t exit_byte;
+    clock_t start = clock();
     while (running) {
         step(&core);
-        exit_dirty = check_dirty(&mem, 0x52);
+        if (check_dirty(&mem, 0x52) && mem.last_address_type == 'w') {
+            read_byte(&mem, 0x52, &exit_byte);
+            printf("Returned: %d\n", exit_byte);
+            running = false;
+        }
 
         step_timer(&timer, &mem, &core);
 
+        step_UART(&uart, &mem, &plic);
+        if (uart.txp > 0) {
+            uint8_t data;
+            read_UART(&uart, &data);
+            //printf("%c", data);
+        }
+
         step_PLIC(&plic, &mem, &core);
 
-        read_byte(&mem, 0x52, &exit_byte);
-        if (exit_dirty) {
-            printf("Returned: %d\n", exit_byte);
-            running = false;
-        } 
+        inst_count++;
     }
+
+    clock_t end = clock();
+
+    double cpu_time = ((double)(end - start)) / CLOCKS_PER_SEC;
+    printf("Time: %f\n", cpu_time);
     
+    printf("Count: %d\n", inst_count);
     return 0;
 }
 
 /*
-Fix peripheral UART
 Missing batch file to compile automatically test programs
 Missing floating point
 Missing the logic for the disk peripheral

@@ -121,17 +121,22 @@ int write_region(memory_t* mem, uint8_t* array, uint32_t address, uint32_t offse
     mem->last_address = address;
     mem->last_address_size = offset;
     mem->last_address_type = 'w';
+    return 0;
 }
 
 int read_region(memory_t* mem, uint8_t* array, uint32_t address, uint32_t offset) {
     for (int i = 0; i < offset; i++) {
-        if (read_byte(mem, address+i, array[i]) == 1) return 1;
+        if (read_byte(mem, address+i, &array[i]) == 1) return 1;
     }
     mem->last_address = address;
     mem->last_address_size = offset;
     mem->last_address_type = 'r';
+    return 0;
 }
 
 bool check_dirty(memory_t* mem, uint32_t address) {
-    return (mem->last_address >= address) && (address < (mem->last_address_size + mem->last_address));
+    for (int i = 0; i < mem->last_address_size; i++) {
+        if (mem->last_address + i == address) return true;
+    }
+    return false;
 }
