@@ -19,13 +19,13 @@ This is a RISC-V Emulator made by a 17 year old. It's architecture is currently 
 -Lazy allocation of memory for optimization
 
 ## How to compile project
-in Powershell on Windows 10/11 using GCC from the project root:
+In Powershell on Windows 10/11 using GCC from the project root:
 
 ```bash
 gcc -O3 src\elf.c src\memory.c src\cpu.c src\peripheral.c src\main.c -o bin\emu.exe
 ```
 
-replace `bin` with the directory of the binary executable if needed
+Replace `bin` with the directory of the binary executable if needed
 
 ## Obtaining the RISC-V Dev Tools for Windows 10/11
 Install NodeJs if you havent
@@ -37,6 +37,25 @@ Install the RISC-V Dev Tools ```xpm install --global @xpack-dev-tools/riscv-none
 Find the bin directory of the Dev Tools and add them to PATH if they aren't already there
 
 Check functionality through ```riscv-none-elf-gcc --version```
+
+## How to use the debugger
+In your program files, add an `ebreak` instruction to anywhere you desire, this will trigger the debug handler when that instruction is hit
+
+For use, there are 7 commands:
+
+```regdump``` dumps the entire register file as 8 digit hex and decimal
+
+```memdump low high``` dumps a region of memory from the low byte to the high byte
+
+```floatdump``` dumps all floating point registers as 8 digit hex and floating point
+
+```csrdump csr``` dumps a specific csr register depending on which csr is chosen
+
+```statedump``` dumps the current privilage mode of the hart
+
+```step``` exits the forever while loop without disabling debug mode, allowing for debug mode to continue to the next instruciton
+
+```quit``` fully exits out of debug mode and continues normal execution
 
 ## How to compile a program
 Using Riscv Dev Tools:
