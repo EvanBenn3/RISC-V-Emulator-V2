@@ -69,7 +69,14 @@ riscv-none-elf-ld -T link.ld asm.o c.o -o program.elf
 A linker file like in the "hello_world" test program is required
 
 ## How to run a program
-Unfortunetely, the emulator currently hard codes the directory to the program elf of choice. To run a program, it is necessary to change this directory for the directory of choice
+Running a program is simple:
+In powershell with GCC:
+```bash
+./emu.exe -k"program.elf" -m1M
+```
+The `-k` flag is the program elf executable, the path to the elf file must be in quotations
+
+The `-m` flag is the maximum memory size of the emulator instance, use K, M or G for prefixes
 
 ## How to help
 By being kind, cooporative and constructive, pointing out bugs suggesting new features, and writing issues
