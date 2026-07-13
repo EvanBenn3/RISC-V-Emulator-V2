@@ -2,19 +2,56 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "../include/cpu.h"
 #include "../include/elf.h"
 #include "../include/peripheral.h"
 
+uint32_t parse_memory_size(const char *arg) {
+    char suffix = arg[strlen(arg) - 1];
+    uint32_t val = atoi(arg);
+
+    switch (suffix) {
+        case 'K': return val * 1024;
+        case 'M': return val * 1024 * 1024;
+        case 'G': return val * 1024 * 1024 * 1024;
+        default:  return val; // bytes
+    }
+}
+
 memory_t mem;
-int main() {
-    init_memory(&mem, 4096*256);
+int main(int argc, char *argv[]) {
+    char *elf_path = NULL;
+    uint32_t memory_size = 256 * 4096; // default: 256 pages (1M)
+
+    int opt;
+    while ((opt = getopt(argc, argv, "k:m:")) != -1) {
+        switch (opt) {
+            case 'k':
+                elf_path = optarg;
+                break;
+            case 'm':
+                // parse memory size: "1M", "256K", "1G"
+                memory_size = parse_memory_size(optarg);
+                break;
+            default:
+                fprintf(stderr, "Usage: %s -k <elf_file> [-m <memory_size>]\n", argv[0]);
+                return 1;
+        }
+    }
+
+    if (elf_path == NULL) {
+        fprintf(stderr, "Error: -k flag required (ELF file path)\n");
+        return 1;
+    }
+
+    init_memory(&mem, memory_size);
 
     hart core;
     init_hart(&core, &mem, 0x80000000, 0);
 
-    ElfProgram *elf = parse_elf("rsc\\hello_world\\output.elf");
+    ElfProgram *elf = parse_elf(elf_path);
     if (!elf) {
         printf("Elf Null\n");
         return -1;
@@ -52,7 +89,7 @@ int main() {
         if (uart.txp > 0) {
             uint8_t data;
             read_UART(&uart, &data);
-            //printf("%c", data);
+            printf("%c", data);
         }
 
         step_PLIC(&plic, &mem, &core);
