@@ -56,16 +56,16 @@ void step_timer(timer_t* timer, memory_t* mem, hart* cpu) {
 
 void init_PLIC(PLIC_t* plic, uint32_t address) {
     plic->device_count = 0;
-    for (int i = 0; i < 1024; i++) plic->pending[i] = false;
-    for (int i = 0; i < 1024; i++) plic->asserted[i] = false;
-    for (int i = 0; i < 1024; i++) plic->blocked[i] = false;
+    for (int i = 0; i < 16; i++) plic->pending[i] = false;
+    for (int i = 0; i < 16; i++) plic->asserted[i] = false;
+    for (int i = 0; i < 16; i++) plic->blocked[i] = false;
     plic->address = address;
     plic->processing = 0;
     plic->curr_ID = 0;
 }
 
 int add_PLIC(PLIC_t* plic) {
-    if (plic->device_count >= 1024) return 0;
+    if (plic->device_count >= 16) return 0;
     plic->device_count += 1;
     return plic->device_count;
 }
@@ -81,10 +81,10 @@ void clear_PLIC(PLIC_t* plic, uint32_t ID) {
 }
 
 void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
-    uint32_t priority[1024];
-    bool enable0[1024];
-    bool enable1[1024];
-    uint8_t pass[1024];
+    uint32_t priority[16];
+    bool enable0[16];
+    bool enable1[16];
+    uint8_t pass[16];
     uint32_t m_priority;
     uint32_t s_priority;
     bool is_m_dirty = false;
@@ -105,7 +105,7 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
         plic->processing = true;
     }
 
-    for (int i = 0; i < 128; i++) { // updates pending
+    for (int i = 0; i < 2; i++) { // updates pending
         uint8_t byte = 0;
         for (int j = 0; j < 8; j++) byte |= (plic->pending[i+j] << j);
         write_byte(mem, plic->address + 0x1000 + i, byte); 
@@ -130,7 +130,7 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
         }
     }
 
-    for (int i = 1; i < 1024; i++) {
+    for (int i = 1; i < 16; i++) {
         if (!plic->blocked[i] && plic->asserted[i]) {
             plic->pending[i] = true; // sets pending bits
             plic->blocked[i] = true;
@@ -145,7 +145,7 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
 
     }
     if (!plic->processing) {
-        for (int i = 0; i < 1024; i++) { // reads enable signals
+        for (int i = 0; i < 16; i++) { // reads enable signals
             read_byte(mem, plic->address + 0x2000 + i, (uint8_t*)&enable0[i]);
             read_byte(mem, plic->address + 0x2080 + i, (uint8_t*)&enable1[i]); 
         }
@@ -160,7 +160,7 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
             write_word(mem, plic->address + 0x201000, 0);
         }
 
-        for (int i = 0; i < 1024; i++) {
+        for (int i = 0; i < 16; i++) {
             pass[i] = 0;
             if (plic->pending[i] && enable1[i] && (priority[i] >= s_priority)) {
                 pass[i] = priority[i] | (1 << 7);
@@ -171,7 +171,7 @@ void step_PLIC(PLIC_t* plic, memory_t* mem, hart* cpu) {
         }
     
         for (int i = 7; i > 0; i--) {
-            for(int j = 0; j < 1024; j++) {
+            for(int j = 0; j < 16; j++) {
                 if ((pass[j] & 0x7) == i) {
                     if (pass[j] & ~0x7) {
                         interrupt(cpu, IRQ_S_EXTERNAL);
